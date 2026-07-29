@@ -1,0 +1,9 @@
+User
+ └─(user field)── Workspace          [one syllabus = one workspace]
+                    ├─(workspace)─── Topic (with embedded subtopics[])
+                    └─(workspace)─── ScheduleDay                
+                                        ↑
+                                        │ scheduleDay
+                        Task ──────────┘
+                          │
+                          └─(topic)──→ Topic
