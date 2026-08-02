@@ -32,15 +32,14 @@ const userSchema = new mongoose.Schema({
         type: String
     }
 }, {
-    timestamp: true
+    timestamps: true
 })
 
 //hashing user's password
-userSchema.pre("save", async function(next){
-    if(!this.isModifined("password")) return next();
+userSchema.pre("save", async function() {
+    if (!this.isModified("password")) return;
     const salt = await bcrypt.genSalt(10);
-    this.password=await bcrypt.hash(this.password, 10)
-    next()
+    this.password = await bcrypt.hash(this.password, 10);
 })
 
 //comparing password during login
