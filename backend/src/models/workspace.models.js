@@ -13,10 +13,6 @@ const workspaceSchema = new mongoose.Schema(
             required: true,
             trim: true
         },
-        syllabusFileUrl: {
-            type: String,
-            required: true
-        },
         rawText: {
             type: String // text extracted from the PDF
         },
