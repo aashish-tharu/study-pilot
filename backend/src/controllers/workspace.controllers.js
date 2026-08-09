@@ -1,9 +1,12 @@
 import { Workspace } from "../models/workspace.models.js"
 import { Topic } from "../models/topic.models.js"
+import { ScheduleDay } from '../models/scheduleDaySchema.models.js'
+import { Task } from "../models/task.models.js";
 import { extractTopicsFromFile } from "../utils/geminiExtraction.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { APIError } from "../utils/APIError.js"
 import { APIResponse } from "../utils/APIResponse.js"
+import { generateSchedule } from "../utils/generateSchedule.js"
 
 export const createWorkspace = asyncHandler( async (req, res) => {
     const { name, daysToComplete, depthLevel } = req.body;
@@ -61,4 +64,47 @@ export const getWorkspaceById = asyncHandler( async (req, res) => {
     const topics = await Topic.find({workspace: workspace._id}).sort("order");
 
     return res.status(200).json(new APIResponse(200, {workspace, topics}, "workspace fetched."))
+})
+
+export const createSchedule = asyncHandler( async (req, res) => {
+    const workspace = await Workspace.findById( {_id: req.params.id, user: req.user._id });
+    if (workspace.length) {
+        return res.status(400).json(new APIError(400, "no workspace exist."))
+    }
+
+    if (workspace.status != 'ready') {
+        throw new APIError(400, "cannot generated the schedule");
+    }
+
+    const topics = await Topic.find({
+        workspace: workspace._id
+    }).sort("order").lean();
+
+    const { scheduleDays, warning } = generateSchedule(
+        topics,
+        new Date(),
+        workspace.daysToComplete,
+        workspace.depthLevel
+    );
+
+    for (const day of scheduleDays) {
+        const scheduleDay = await ScheduleDay.create({
+                workspace: workspace._id,
+                date: day.date
+            })
+
+        await Task.insertMany(
+            day.tasks.map((t) => ({
+                topic: t.topicId,
+                scheduleDay: scheduleDay._id,
+            }))
+        );    
+    }
+
+    workspace.status = 'scheduled';
+    await workspace.save();
+
+    return res.status(201).json(
+        new APIResponse(201, { scheduleDays, warning }, "Schedule generated")
+    )
 })
