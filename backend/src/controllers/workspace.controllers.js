@@ -108,3 +108,51 @@ export const createSchedule = asyncHandler( async (req, res) => {
         new APIResponse(201, { scheduleDays, warning }, "Schedule generated")
     )
 })
+
+export const getTodayTasks = asyncHandler(async (req, res) => {
+  const workspace = await Workspace.findOne({ _id: req.params.id, user: req.user._id });
+  if (!workspace) throw new APIError(404, "Workspace not found");
+ 
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+ 
+  const scheduleDays = await ScheduleDay.find({
+    workspace: workspace._id,
+    date: { $gte: startOfToday, $lte: endOfToday },
+  });
+ 
+  const dayIds = scheduleDays.map((d) => d._id);
+ 
+  let tasks = await Task.find({
+    scheduleDay: { $in: dayIds },
+    status: "pending",
+  })
+    .populate("topic", "name subtopics")
+    .populate("scheduleDay", "date");
+
+  const sortedTasks = tasks.sort((a, b) => a.scheduleDay.date - b.scheduleDay.date);
+ 
+  return res.status(200).json(
+    new APIResponse(200, { tasks: sortedTasks, remainingCount: sortedTasks.length }, "Today's tasks fetched")
+  );
+});
+
+export const getWorkspaceProgress = asyncHandler(async (req, res) => {
+  const workspace = await Workspace.findOne({ _id: req.params.id, user: req.user._id });
+  if (!workspace) throw new APIError(404, "Workspace not found");
+ 
+  const topicIds = await Topic.find({ workspace: workspace._id }).distinct("_id");
+ 
+  const [totalTasks, completedTasks] = await Promise.all([
+    Task.countDocuments({ topic: { $in: topicIds } }),
+    Task.countDocuments({ topic: { $in: topicIds }, status: "done" }),
+  ]);
+ 
+  const percentComplete = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+ 
+  return res.status(200).json(
+    new APIResponse(200, { totalTasks, completedTasks, percentComplete }, "Progress fetched")
+  );
+});

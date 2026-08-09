@@ -25,4 +25,7 @@ app.post('/', (req, res)=>{
 import workspaceRouter from "./routes/workspace.routes.js";
 app.use("/api/v1/workspaces", workspaceRouter)
 
+import taskRouter from './routes/task.routers.js'
+app.use("/api/v1/task", taskRouter)
+
 export default app
