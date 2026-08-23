@@ -19,6 +19,10 @@ const taskSchema = new mongoose.Schema(
       enum: ["pending", "done", "skipped"],
       default: "pending",
     },
+    completedSubtopics: {
+      type: [String],
+      default: []
+    },
     completedAt: {
       type: Date,
     },
