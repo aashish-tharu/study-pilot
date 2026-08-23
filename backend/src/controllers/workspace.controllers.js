@@ -139,6 +139,30 @@ export const getTodayTasks = asyncHandler(async (req, res) => {
   );
 });
 
+export const getAllTasks = asyncHandler(async (req, res) => {
+  const workspace = await Workspace.findOne({ _id: req.params.id, user: req.user._id });
+  if (!workspace) throw new APIError(404, "Workspace not found");
+
+  const topicIds = await Topic.find({ workspace: workspace._id }).distinct("_id");
+
+  const tasks = await Task.find({
+    topic: { $in: topicIds },
+  })
+    .populate("topic", "name subtopics")
+    .populate("scheduleDay", "date")
+    .sort({ createdAt: -1 });
+
+  const tasksByStatus = {
+    pending: tasks.filter(t => t.status === 'pending'),
+    done: tasks.filter(t => t.status === 'done'),
+    skipped: tasks.filter(t => t.status === 'skipped'),
+  };
+
+  return res.status(200).json(
+    new APIResponse(200, { tasks, tasksByStatus, total: tasks.length }, "All tasks fetched")
+  );
+});
+
 export const getWorkspaceProgress = asyncHandler(async (req, res) => {
   const workspace = await Workspace.findOne({ _id: req.params.id, user: req.user._id });
   if (!workspace) throw new APIError(404, "Workspace not found");
