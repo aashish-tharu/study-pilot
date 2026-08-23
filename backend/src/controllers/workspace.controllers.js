@@ -67,10 +67,8 @@ export const getWorkspaceById = asyncHandler( async (req, res) => {
 })
 
 export const createSchedule = asyncHandler( async (req, res) => {
-    const workspace = await Workspace.findById( {_id: req.params.id, user: req.user._id });
-    if (workspace.length) {
-        return res.status(400).json(new APIError(400, "no workspace exist."))
-    }
+  const workspace = await Workspace.findOne({ _id: req.params.id, user: req.user._id });
+  if (!workspace) throw new APIError(404, "workspace not found");
 
     if (workspace.status != 'ready') {
         throw new APIError(400, "cannot generated the schedule");

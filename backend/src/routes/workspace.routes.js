@@ -10,7 +10,7 @@ router.use(verifyJWT);
 router.route("/").post(upload.single("syllabus"), createWorkspace);
 router.route("/").get(getUserWorkspaces);
 router.route("/:id").get(getWorkspaceById)
-router.route("/:id/schedule").get(createSchedule);
+router.route("/:id/schedule").post(createSchedule);
 router.route("/:id/today").get(getTodayTasks);
 router.route("/:id/all-tasks").get(getAllTasks);
 router.route("/:id/progress").get(getWorkspaceProgress);
