@@ -1,104 +1,247 @@
-const API_BASE = '/api/v1';
-
-async function request(path, options = {}) {
-  const headers = new Headers(options.headers || {});
-
-  if (!(options.body instanceof FormData)) {
-    headers.set('Accept', 'application/json');
-  }
-
-  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    ...options,
-    headers,
+export async function registerUser(formData) {
+  const response = await fetch("/api/v1/users/register", { 
+    method: "POST",  
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(formData),
   });
-
-  const contentType = response.headers.get('content-type') || '';
-  const payload = contentType.includes('application/json')
-    ? await response.json()
-    : await response.text();
-
+  const data = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.message || 'Request failed');
+    throw new Error(data.message || "Registration failed");
   }
-
-  return payload;
+  return data;
 }
 
 export async function loginUser(credentials) {
-  return request('/users/login', {
-    method: 'POST',
+  const response = await fetch("/api/v1/users/login", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(credentials),
   });
-}
-
-export async function registerUser(payload) {
-  return request('/users/register', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function logoutUser() {
-  return request('/users/logout', { method: 'POST' });
-}
-
-export async function updatePassword(oldPassword, newPassword) {
-  return request('/users/updatepassword', {
-    method: 'POST',
-    body: JSON.stringify({ oldPassword, newPassword }),
-  });
-}
-
-export async function getCurrentUser() {
-  return request('/users/getcurrentuser', { method: 'POST' });
-}
-
-export async function getWorkspaces() {
-  return request('/workspaces', { method: 'GET' });
+  const text = await response.text();
+  console.log("Login Status:", response.status);
+  console.log("Login Response:", text);
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status} instead of JSON`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Login failed");
+  }
+  return data;
 }
 
 export async function createWorkspace(formData) {
-  return request('/workspaces/', {
-    method: 'POST',
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch("/api/v1/workspaces/", { 
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,  // Send JWT access token
+    },
     body: formData,
   });
+  const text = await response.text();
+  console.log("Status:", response.status);
+  console.log("Response:", text);
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Workspace creation failed");
+  }
+  return data;
 }
 
-export async function getWorkspaceDetails(workspaceId) {
-  return request(`/workspaces/${workspaceId}`, { method: 'GET' });
-}
-
-export async function getWorkspaceProgress(workspaceId) {
-  return request(`/workspaces/${workspaceId}/progress`, { method: 'GET' });
-}
-
-export async function getTodayTasks(workspaceId) {
-  return request(`/workspaces/${workspaceId}/today`, { method: 'GET' });
-}
-
-export async function getAllTasks(workspaceId) {
-  return request(`/workspaces/${workspaceId}/all-tasks`, { method: 'GET' });
-}
-
-export async function generateSchedule(workspaceId) {
-  return request(`/workspaces/${workspaceId}/schedule`, { method: 'POST' });
-}
-
-export async function updateTaskStatus(taskId, status) {
-  return request(`/task/${taskId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
+export async function getWorkspaces() {
+  let token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  let response = await fetch("/api/v1/workspaces/", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
+  if (response.status === 401) {
+    console.log("Access token expired. Refreshing token...");
+    try {
+      token = await refreshAccessToken();
+      response = await fetch("/api/v1/workspaces/", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      localStorage.removeItem("accessToken");
+      throw new Error("Session expired. Please login again.");
+    }
+  }
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch workspaces");
+  }
+  return data;
 }
 
-export async function updateSubtopicStatus(taskId, subtopic, completed) {
-  return request(`/task/${taskId}/subtopic`, {
-    method: 'PATCH',
-    body: JSON.stringify({ subtopic, completed }),
+export async function refreshAccessToken() {
+  const response = await fetch("/api/v1/users/refresh-token", {
+    method: "POST",
+    credentials: "include",
   });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Session expired");
+  }
+  localStorage.setItem("accessToken", data.data.accessToken);
+  return data.data.accessToken;
+}
+ 
+export async function getWorkspaceById(id) {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  const response = await fetch(`/api/v1/workspaces/${id}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch workspace");
+  }
+  return data;
+}
+
+export async function logoutUser() {
+  const response = await fetch("/api/v1/users/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Logout failed");
+  }
+  return data;
+}
+
+export async function generateSchedule(id) {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  const response = await fetch(`/api/v1/workspaces/${id}/schedule`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const text = await response.text();
+  console.log("Schedule Status:", response.status);
+  console.log("Schedule Response:", text);
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to generate schedule");
+  }
+  return data;
+}
+
+export async function getTodayTasks(id) {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  const response = await fetch(`/api/v1/workspaces/${id}/today`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch today's tasks");
+  }
+  return data;
+}
+
+export async function updateTaskStatus(id, status) {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  const response = await fetch(`/api/v1/task/${id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status: status,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to update task status");
+  }
+  return data;
+}
+
+export async function getAllTasks(id) {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    throw new Error("Access token not found. Please login again.");
+  }
+  const response = await fetch(`/api/v1/workspaces/${id}/all-tasks`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch all tasks");
+  }
+  return data;
 }
